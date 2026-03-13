@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+		<meta name="theme-color" content="#060b18" />
+		<meta name="mobile-web-app-capable" content="yes" />
+		<meta name="apple-mobile-web-app-capable" content="yes" />
+		<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+		<title>VoiceBridge</title>
+		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link
+			href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap"
+			rel="stylesheet"
+		/>
+		<link rel="stylesheet" href="styles/main.css" />
+	</head>
+	<body>
+		<div class="app">
+			<header>
+				<div class="logo">Voice<span>Bridge</span></div>
+				<div class="model-badge">llama-3.1-8b ✦ CF</div>
+			</header>
+
+			<div class="error-msg" id="errorMsg"></div>
+
+			<!-- Language Bar -->
+			<div class="lang-bar">
+				<select class="lang-select" id="srcSelect" onchange="onSourceLangChange(this.value)"></select>
+				<button class="swap-btn" onclick="onSwapLanguage()" title="Swap">⇄</button>
+				<select class="lang-select" id="tgtSelect" onchange="onTargetLangChange(this.value)"></select>
+			</div>
+
+			<!-- Input Card -->
+			<div class="card" id="inputCard">
+				<div class="card-label">// YOU SAID</div>
+				<div class="card-text placeholder" id="inputText">Tap the mic and speak...</div>
+				<div class="card-actions">
+					<button class="icon-btn" onclick="clearAll()">✕ Clear</button>
+				</div>
+			</div>
+
+			<!-- Output Card -->
+			<div class="card result-card" id="outputCard">
+				<div class="card-label">// TRANSLATION</div>
+				<div class="card-text placeholder" id="outputText">Translation will appear here...</div>
+				<div class="card-actions">
+					<button class="icon-btn" onclick="speakOutput()">▶ Replay</button>
+					<button class="icon-btn" onclick="copyOutput()">⎘ Copy</button>
+				</div>
+			</div>
+
+			<!-- Mic Section -->
+			<div class="mic-section">
+				<div class="mic-status" id="micStatus">Tap to speak</div>
+
+				<div class="waveform" id="waveform">
+					<div class="wave-bar" style="height: 8px"></div>
+					<div class="wave-bar" style="height: 14px"></div>
+					<div class="wave-bar" style="height: 22px"></div>
+					<div class="wave-bar" style="height: 18px"></div>
+					<div class="wave-bar" style="height: 28px"></div>
+					<div class="wave-bar" style="height: 18px"></div>
+					<div class="wave-bar" style="height: 22px"></div>
+					<div class="wave-bar" style="height: 14px"></div>
+					<div class="wave-bar" style="height: 8px"></div>
+				</div>
+
+				<div class="mic-outer">
+					<div class="mic-ring" id="ring1"></div>
+					<div class="mic-ring" id="ring2"></div>
+					<div class="mic-ring" id="ring3"></div>
+					<button class="mic-btn" id="micBtn" onclick="handleMic()">
+						<span class="mic-icon" id="micIcon">🎙️</span>
+					</button>
+				</div>
+			</div>
+		</div>
+
+		<div class="toast" id="toast"></div>
+
+		<!-- ES Modules: browser loads only what it needs -->
+		<script type="module" src="src/app.js"></script>
+	</body>
+</html>
