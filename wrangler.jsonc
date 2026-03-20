@@ -7,13 +7,28 @@
 	"name": "voicebridge-multi",
 	"main": "src/index.js",
 	"compatibility_date": "2026-03-10",
-	"compatibility_flags": ["nodejs_compat"],
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
 	"observability": {
 		"enabled": true,
 	},
 	"ai": {
 		"binding": "AI",
 	},
+	"d1_databases": [
+		{
+			"binding": "voicebridge-db",
+			"database_name": "voicebridge-db",
+			"database_id": "d25355d7-ba71-456d-9115-5a5c0e56ed68"
+		}
+	],
+	"kv_namespaces": [
+		{
+			"binding": "voicebridge_sessions",
+			"id": "d9e4af31d77e49868a4d8b895f1815c9"
+		}
+	],
 } /**
  * Smart Placement
  * https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement

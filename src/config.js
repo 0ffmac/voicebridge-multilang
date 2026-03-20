@@ -3,7 +3,7 @@
 // The app will automatically support any pair from that list.
 
 // export const WORKER_URL = 'https://voicebridge-api.comblog.workers.dev';
-export const WORKER_URL = 'https://voicebridge-multilang.comblog.workers.dev';
+export const WORKER_URL = 'https://voicebridge-multi.comblog.workers.dev';
 
 export const LANGUAGES = [
 	{ code: 'en', label: 'English', flag: '🇺🇸', speechCode: 'en-US' },
