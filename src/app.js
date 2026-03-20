@@ -1,26 +1,39 @@
+// src/app.js
 import { LANGUAGES } from './config.js';
 import { state, swapLanguages } from './state.js';
 import { fetchTranslation } from './translate.js';
 import { speak, speakAsync, preloadVoices, unlockAudio } from './tts.js';
 import { isIOS, buildRecognition, startListening, stopListening, destroyRecognition } from './recognition.js';
 import {
-  renderLangBar, renderLangSelectors,
+  renderLangSelectors,
   setUIIdle, setUIProcessing, setUIReadyToSpeak, setUISuccess,
   setOutputText, clearCards,
   showError, hideError, showToast,
 } from './ui.js';
+import { router } from './router.js';
+import { session } from './session.js';
 
-// ─── Init ─────────────────────────────────────────────────────────────────────
+// ─── Boot ─────────────────────────────────────────────────────────────────────
 preloadVoices();
-renderLangBar();
-renderLangSelectors();
-document.addEventListener('touchend', unlockAudio, { once: true });
+window.router = router;
+router.init();
+
+// ─── initTranslator — called after translator page DOM is rendered ────────────
+export function initTranslator() {
+  // Set default languages from user preference
+  if (session.user?.language) {
+    state.sourceLang = LANGUAGES.find(l => l.code === session.user.language) || LANGUAGES[0];
+    state.targetLang = LANGUAGES.find(l => l.code !== state.sourceLang.code) || LANGUAGES[1];
+  }
+
+  renderLangSelectors();
+  document.addEventListener('touchend', unlockAudio, { once: true });
+}
 
 // ─── Language Controls ────────────────────────────────────────────────────────
 window.onSwapLanguage = () => {
   swapLanguages();
   destroyRecognition();
-  renderLangBar();
   renderLangSelectors();
   clearCards();
   state.lastTranslation = '';
@@ -29,10 +42,8 @@ window.onSwapLanguage = () => {
 
 window.onSourceLangChange = (code) => {
   state.sourceLang = LANGUAGES.find(l => l.code === code);
-  // Auto-pick first different language as target
   state.targetLang = LANGUAGES.find(l => l.code !== code) || LANGUAGES[1];
   destroyRecognition();
-  renderLangBar();
   renderLangSelectors();
   clearCards();
   state.lastTranslation = '';
@@ -47,7 +58,6 @@ window.onTargetLangChange = (code) => {
 
 // ─── Mic Button ───────────────────────────────────────────────────────────────
 window.handleMic = () => {
-  // iOS: tap mic after translation → speak first, then go idle
   if (isIOS && state.phase === 'done' && state.lastTranslation) {
     speak(state.lastTranslation, state.targetLang.speechCode, () => {
       state.phase = 'idle';
