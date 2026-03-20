@@ -11,7 +11,7 @@
 	"devDependencies": {
 		"@cloudflare/vitest-pool-workers": "^0.12.4",
 		"vitest": "~3.2.0",
-		"wrangler": "^4.72.0"
+		"wrangler": "^4.76.0"
 	},
 	"dependencies": {
 		"nanoid": "^5.1.7"

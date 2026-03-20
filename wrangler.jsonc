@@ -15,17 +15,18 @@
 	},
 	"ai": {
 		"binding": "AI",
+		"remote": true
 	},
 	"d1_databases": [
 		{
-			"binding": "voicebridge-db",
+			"binding": "DB",
 			"database_name": "voicebridge-db",
 			"database_id": "d25355d7-ba71-456d-9115-5a5c0e56ed68"
 		}
 	],
 	"kv_namespaces": [
 		{
-			"binding": "voicebridge_sessions",
+			"binding": "KV",
 			"id": "d9e4af31d77e49868a4d8b895f1815c9"
 		}
 	],

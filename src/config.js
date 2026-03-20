@@ -2,8 +2,12 @@
 // To add a new language: add an entry to LANGUAGES below.
 // The app will automatically support any pair from that list.
 
+
+
+
 // export const WORKER_URL = 'https://voicebridge-api.comblog.workers.dev';
-export const WORKER_URL = 'https://voicebridge-multi.comblog.workers.dev';
+// export const WORKER_URL = 'https://voicebridge-multi.comblog.workers.dev';
+export const WORKER_URL = 'http://localhost:8787';
 
 export const LANGUAGES = [
 	{ code: 'en', label: 'English', flag: '🇺🇸', speechCode: 'en-US' },

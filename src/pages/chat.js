@@ -2,45 +2,44 @@
 import { API } from '../api/client.js';
 import { session } from '../session.js';
 import { LANGUAGES } from '../config.js';
-import { isIOS, buildRecognition, startListening, stopListening, destroyRecognition } from '../recognition.js';
+import { isIOS } from '../recognition.js';
 import { speak, unlockAudio } from '../tts.js';
-import { state } from '../state.js';
+import { SILENCE_TIMEOUT_MS } from '../config.js';
 
 let chatState = {
   friendId: null,
   friendName: null,
   friendLang: null,
-  phase: 'idle', // 'idle' | 'recording' | 'processing' | 'done'
+  phase: 'idle',
   lastTranscript: '',
   lastTranslation: '',
+  recognition: null,
+  silenceTimer: null,
 };
 
 export async function renderChatPage(params) {
   chatState.friendId = params.friendId;
   chatState.friendName = params.friendName;
   chatState.friendLang = params.friendLang;
-
-  // Set state source lang from session user language
-  state.sourceLang = LANGUAGES.find(l => l.code === session.user.language) || LANGUAGES[0];
-  state.targetLang = LANGUAGES.find(l => l.code === chatState.friendLang) || LANGUAGES[1];
+  chatState.phase = 'idle';
+  chatState.lastTranscript = '';
+  chatState.lastTranslation = '';
 
   document.getElementById('app').innerHTML = `
     <div class="app">
       <header>
-        <button class="back-btn" onclick="window.router.go('contacts')">‹</button>
+        <button class="back-btn" onclick="leaveChatPage()">‹</button>
         <div class="chat-header-info">
           <div class="chat-name">${chatState.friendName}</div>
           <div class="chat-langs">${getLangFlag(session.user.language)} → ${getLangFlag(chatState.friendLang)}</div>
         </div>
-        <button class="icon-btn" onclick="window.router.go('contacts')">👥</button>
+        <button class="icon-btn" onclick="leaveChatPage()">👥</button>
       </header>
 
-      <!-- Messages -->
       <div class="messages-list" id="messagesList">
         <div class="loading">Loading messages...</div>
       </div>
 
-      <!-- Voice input bar -->
       <div class="chat-input-bar">
         <div class="chat-status" id="chatStatus">Tap mic to send a voice message</div>
         <div class="chat-transcript" id="chatTranscript"></div>
@@ -57,12 +56,18 @@ export async function renderChatPage(params) {
   await loadMessages();
 }
 
+window.leaveChatPage = () => {
+  stopChatListening(false);
+  window.router.go('contacts');
+};
+
 async function loadMessages() {
   try {
     const { messages } = await API.get(`/api/messages/${chatState.friendId}`);
     renderMessages(messages);
   } catch(e) {
-    document.getElementById('messagesList').innerHTML = '<div class="empty-state">Failed to load messages.</div>';
+    document.getElementById('messagesList').innerHTML =
+      '<div class="empty-state">Failed to load messages.</div>';
   }
 }
 
@@ -72,27 +77,32 @@ function renderMessages(messages) {
     el.innerHTML = '<div class="empty-state">No messages yet.<br>Tap the mic to say something!</div>';
     return;
   }
-
   el.innerHTML = messages.map(m => {
     const isMine = m.sender_id === session.user.id;
     const time = new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const mainText = isMine ? m.original_text : m.translated_text;
+    const subText  = isMine ? m.translated_text : m.original_text;
+    const playLang = isMine ? chatState.friendLang : session.user.language;
+    const playText = isMine ? m.translated_text : m.original_text;
     return `
       <div class="message ${isMine ? 'message-mine' : 'message-theirs'}">
         <div class="message-bubble">
-          <div class="message-original">${isMine ? m.original_text : m.translated_text}</div>
-          <div class="message-translation">${isMine ? m.translated_text : m.original_text}</div>
-          <button class="message-play" onclick="playMessage('${encodeURIComponent(isMine ? m.translated_text : m.original_text)}', '${isMine ? chatState.friendLang : session.user.language}')">▶</button>
+          <div class="message-original">${mainText}</div>
+          <div class="message-translation">${subText}</div>
+          <button class="message-play"
+            onclick="playMessage('${encodeURIComponent(playText)}','${playLang}')">▶</button>
         </div>
         <div class="message-time">${time}</div>
       </div>
     `;
   }).join('');
-
-  // Scroll to bottom
   el.scrollTop = el.scrollHeight;
 }
 
-// ── Mic handling ──────────────────────────────────────────────────────────────
+window.playMessage = (text, lang) => {
+  speak(decodeURIComponent(text), lang, null);
+};
+
 window.handleChatMic = () => {
   if (isIOS && chatState.phase === 'done' && chatState.lastTranslation) {
     speak(chatState.lastTranslation, chatState.friendLang, () => {
@@ -105,29 +115,107 @@ window.handleChatMic = () => {
   if (chatState.phase === 'processing') return;
 
   if (chatState.phase === 'recording') {
-    stopListening();
+    chatState.phase = 'stopping';
+    stopChatListening(true);
   } else {
-    startChatRecording();
+    startChatListening();
   }
 };
 
-function startChatRecording() {
-  destroyRecognition();
-  if (!buildRecognition(onChatTranscriptReady)) return;
-  chatState.phase = 'recording';
-  chatState.lastTranscript = '';
-  setChatUIRecording();
-  startListening();
+function startChatListening() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) {
+    setChatStatus('Speech recognition not supported on this browser.');
+    return;
+  }
+
+  stopChatListening(false);
+
+  const lang = LANGUAGES.find(l => l.code === session.user.language)?.speechCode || 'en-US';
+  const rec = new SR();
+  rec.lang = lang;
+  rec.interimResults = true;
+  rec.maxAlternatives = 1;
+  rec.continuous = isIOS ? true : false;
+
+  rec.onstart = () => {
+    chatState.phase = 'recording';
+    chatState.lastTranscript = '';
+    setChatUIRecording();
+    if (isIOS) resetChatSilenceTimer();
+  };
+
+  rec.onresult = (event) => {
+    if (isIOS) {
+      let finalText = '', interimText = '';
+      for (let i = 0; i < event.results.length; i++) {
+        if (event.results[i].isFinal) finalText += event.results[i][0].transcript + ' ';
+        else interimText += event.results[i][0].transcript;
+      }
+      chatState.lastTranscript = (finalText || interimText).trim();
+      document.getElementById('chatTranscript').textContent = chatState.lastTranscript;
+      resetChatSilenceTimer();
+    } else {
+      const result = event.results[event.results.length - 1];
+      chatState.lastTranscript = result[0].transcript.trim();
+      document.getElementById('chatTranscript').textContent = chatState.lastTranscript;
+      if (result.isFinal) {
+        clearTimeout(chatState.silenceTimer);
+        stopChatListening(true);
+      }
+    }
+  };
+
+  rec.onerror = (e) => {
+    clearTimeout(chatState.silenceTimer);
+    chatState.phase = 'idle';
+    setChatUIIdle();
+    if (e.error === 'not-allowed') {
+      setChatStatus('Microphone permission denied. Allow mic in browser settings.');
+    } else if (e.error !== 'aborted' && e.error !== 'no-speech') {
+      setChatStatus('Mic error: ' + e.error);
+    }
+  };
+
+  rec.onend = () => {
+    clearTimeout(chatState.silenceTimer);
+    if (chatState.phase === 'recording' || chatState.phase === 'stopping') {
+      const text = chatState.lastTranscript;
+      chatState.phase = 'idle';
+      if (text) sendVoiceMessage(text);
+      else setChatUIIdle();
+    }
+  };
+
+  chatState.recognition = rec;
+  rec.start();
 }
 
-function onChatTranscriptReady(text) {
-  chatState.lastTranscript = text;
-  sendVoiceMessage(text);
+function stopChatListening(shouldTranslate = false) {
+  clearTimeout(chatState.silenceTimer);
+  if (!shouldTranslate) chatState.phase = 'idle';
+  if (chatState.recognition) {
+    try { chatState.recognition.stop(); } catch(e) {}
+    chatState.recognition = null;
+  }
+}
+
+function resetChatSilenceTimer() {
+  clearTimeout(chatState.silenceTimer);
+  chatState.silenceTimer = setTimeout(() => {
+    if (chatState.phase === 'recording' && chatState.lastTranscript) {
+      chatState.phase = 'stopping';
+      stopChatListening(true);
+    } else if (chatState.phase === 'recording') {
+      stopChatListening(false);
+      setChatUIIdle();
+    }
+  }, SILENCE_TIMEOUT_MS);
 }
 
 async function sendVoiceMessage(text) {
   chatState.phase = 'processing';
-  setChatUIProcessing();
+  setChatUIProcessing(text);
 
   try {
     const msg = await API.post('/api/messages/send', {
@@ -138,8 +226,6 @@ async function sendVoiceMessage(text) {
     });
 
     chatState.lastTranslation = msg.translated_text;
-
-    // Reload messages
     await loadMessages();
 
     if (isIOS) {
@@ -150,19 +236,13 @@ async function sendVoiceMessage(text) {
       chatState.phase = 'idle';
       setChatUIIdle();
     }
-
   } catch(err) {
     chatState.phase = 'idle';
     setChatUIIdle();
-    document.getElementById('chatStatus').textContent = 'Error: ' + err.message;
+    setChatStatus('Error: ' + err.message);
   }
 }
 
-window.playMessage = (text, lang) => {
-  speak(decodeURIComponent(text), lang, null);
-};
-
-// ── Chat UI states ────────────────────────────────────────────────────────────
 function setChatUIIdle() {
   document.getElementById('chatMicBtn').className = 'chat-mic-btn';
   document.getElementById('chatMicIcon').textContent = '🎙️';
@@ -176,17 +256,22 @@ function setChatUIRecording() {
   document.getElementById('chatStatus').textContent = 'Listening... tap to stop';
 }
 
-function setChatUIProcessing() {
+function setChatUIProcessing(text) {
   document.getElementById('chatMicBtn').className = 'chat-mic-btn processing';
   document.getElementById('chatMicIcon').textContent = '⟳';
   document.getElementById('chatStatus').textContent = 'Translating & sending...';
-  document.getElementById('chatTranscript').textContent = chatState.lastTranscript;
+  document.getElementById('chatTranscript').textContent = text;
 }
 
 function setChatUIReadyToSpeak() {
   document.getElementById('chatMicBtn').className = 'chat-mic-btn';
   document.getElementById('chatMicIcon').textContent = '🔊';
   document.getElementById('chatStatus').textContent = '↑ Tap to hear your translation';
+}
+
+function setChatStatus(msg) {
+  const el = document.getElementById('chatStatus');
+  if (el) el.textContent = msg;
 }
 
 function getLangFlag(code) {
