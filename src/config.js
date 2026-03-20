@@ -15,6 +15,8 @@ export const LANGUAGES = [
 	{ code: 'ms', label: 'Malay', flag: '🇲🇾', speechCode: 'ms-MY' },
 	{ code: 'th', label: 'Thai', flag: '🇹🇭', speechCode: 'th-TH' },
 	{ code: 'pt-BR', label: 'Portuguese (BR)', flag: '🇧🇷', speechCode: 'pt-BR' },
+	{ code: 'hi', label: 'Hindi', flag: '🇮🇳', speechCode: 'hi-IN' },
+	{ code: 'ar-AE', label: 'Arabic (Dubai)', flag: '🇦🇪', speechCode: 'ar-AE' },
 ];
 
 export const SILENCE_TIMEOUT_MS = 3000; // iOS silence detection threshold
