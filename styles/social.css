@@ -398,3 +398,23 @@
   animation: processingPulse 1.5s ease-in-out infinite;
 }
 .chat-mic-btn:active { transform: scale(0.96); }
+
+/* ── New message badge ───────────────────────────────────────────────────── */
+.new-msg-badge {
+  background: var(--accent);
+  color: #000;
+  font-family: 'Syne', sans-serif;
+  font-weight: 700;
+  font-size: 0.75rem;
+  border-radius: 20px;
+  padding: 6px 16px;
+  cursor: pointer;
+  text-align: center;
+  margin-bottom: 8px;
+  animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+  from { transform: translateY(10px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}

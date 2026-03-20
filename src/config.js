@@ -7,7 +7,7 @@
 
 // export const WORKER_URL = 'https://voicebridge-api.comblog.workers.dev';
 // export const WORKER_URL = 'https://voicebridge-multi.comblog.workers.dev';
-export const WORKER_URL = 'http://localhost:8787';
+export const WORKER_URL = 'https://voicebridge-multi.comblog.workers.dev';
 
 export const LANGUAGES = [
 	{ code: 'en', label: 'English', flag: '🇺🇸', speechCode: 'en-US' },

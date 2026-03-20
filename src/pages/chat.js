@@ -15,7 +15,12 @@ let chatState = {
   lastTranslation: '',
   recognition: null,
   silenceTimer: null,
+  pollTimer: null,          // polling interval
+  lastMessageId: null,      // track last seen message to detect new ones
+  messageCount: 0,          // track count to detect new arrivals
 };
+
+const POLL_INTERVAL_MS = 8000; // check every 8 seconds
 
 export async function renderChatPage(params) {
   chatState.friendId = params.friendId;
@@ -24,6 +29,9 @@ export async function renderChatPage(params) {
   chatState.phase = 'idle';
   chatState.lastTranscript = '';
   chatState.lastTranslation = '';
+  chatState.lastMessageId = null;
+  chatState.messageCount = 0;
+  stopPolling();
 
   document.getElementById('app').innerHTML = `
     <div class="app">
@@ -54,17 +62,87 @@ export async function renderChatPage(params) {
 
   document.addEventListener('touchend', unlockAudio, { once: true });
   await loadMessages();
+  startPolling();
 }
 
 window.leaveChatPage = () => {
+  stopPolling();
   stopChatListening(false);
   window.router.go('contacts');
 };
 
+// ── Polling ────────────────────────────────────────────────────────────────────
+function startPolling() {
+  stopPolling();
+  chatState.pollTimer = setInterval(pollMessages, POLL_INTERVAL_MS);
+}
+
+function stopPolling() {
+  if (chatState.pollTimer) {
+    clearInterval(chatState.pollTimer);
+    chatState.pollTimer = null;
+  }
+}
+
+async function pollMessages() {
+  // Don't poll while user is recording or processing — avoid interrupting
+  if (chatState.phase === 'recording' || chatState.phase === 'processing') return;
+
+  try {
+    const { messages } = await API.get(`/api/messages/${chatState.friendId}`);
+    const newCount = messages.length;
+
+    if (newCount > chatState.messageCount) {
+      const isScrolledToBottom = isAtBottom();
+      renderMessages(messages);
+
+      // Only auto-scroll if user was already at the bottom
+      if (isScrolledToBottom) scrollToBottom();
+
+      // Show new message indicator if user scrolled up
+      if (!isScrolledToBottom && newCount > chatState.messageCount) {
+        showNewMessageBadge(newCount - chatState.messageCount);
+      }
+
+      chatState.messageCount = newCount;
+    }
+  } catch(e) {
+    // Silently ignore poll errors — don't show error to user
+  }
+}
+
+function isAtBottom() {
+  const el = document.getElementById('messagesList');
+  if (!el) return true;
+  return el.scrollHeight - el.scrollTop - el.clientHeight < 60;
+}
+
+function scrollToBottom() {
+  const el = document.getElementById('messagesList');
+  if (el) el.scrollTop = el.scrollHeight;
+}
+
+function showNewMessageBadge(count) {
+  // Remove existing badge
+  document.getElementById('newMsgBadge')?.remove();
+
+  const badge = document.createElement('div');
+  badge.id = 'newMsgBadge';
+  badge.className = 'new-msg-badge';
+  badge.textContent = `↓ ${count} new message${count > 1 ? 's' : ''}`;
+  badge.onclick = () => {
+    scrollToBottom();
+    badge.remove();
+  };
+  document.querySelector('.chat-input-bar')?.prepend(badge);
+}
+
 async function loadMessages() {
   try {
     const { messages } = await API.get(`/api/messages/${chatState.friendId}`);
+    chatState.messageCount = messages.length;
     renderMessages(messages);
+    scrollToBottom();
   } catch(e) {
     document.getElementById('messagesList').innerHTML =
       '<div class="empty-state">Failed to load messages.</div>';
@@ -226,7 +304,10 @@ async function sendVoiceMessage(text) {
     });
 
     chatState.lastTranslation = msg.translated_text;
-    await loadMessages();
+    const { messages } = await API.get(`/api/messages/${chatState.friendId}`);
+    chatState.messageCount = messages.length;
+    renderMessages(messages);
+    scrollToBottom();
 
     if (isIOS) {
       chatState.phase = 'done';
