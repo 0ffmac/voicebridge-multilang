@@ -17,18 +17,15 @@ export const router = {
       return;
     }
 
-    // Route based on auth state
-    if (!session.isLoggedIn()) {
-      renderAuthPage();
-      return;
-    }
-
+    // Always start with the translator — no login required
     this.go('translator');
   },
 
   go(page, params = {}) {
-    if (!session.isLoggedIn() && page !== 'auth') {
-      renderAuthPage();
+    // Only contacts and chat require login
+    const requiresAuth = ['contacts', 'chat', 'profile'];
+    if (requiresAuth.includes(page) && !session.isLoggedIn()) {
+      renderAuthPage(page, params); // remember where to go after login
       return;
     }
 
@@ -73,7 +70,10 @@ async function handleMagicLink(token) {
     if (data.is_new_user) {
       router.go('profile', { isNew: true });
     } else {
-      router.go('translator');
+      // Go to where user was trying to go before login
+      const redirect = window._authRedirect || { page: 'contacts', params: {} };
+      window._authRedirect = null;
+      router.go(redirect.page, redirect.params);
     }
   } catch (err) {
     document.getElementById('app').innerHTML = `

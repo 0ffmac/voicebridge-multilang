@@ -1,16 +1,24 @@
 // src/translatorPage.js
 // Wraps the existing translator UI as a routable page
 import { session } from './session.js';
+import { avatarImg } from './avatar.js';
 
 export function renderTranslatorPage() {
+  const isLoggedIn = session.isLoggedIn();
+
   document.getElementById('app').innerHTML = `
     <div class="app">
       <header>
         <div class="logo">Voice<span>Bridge</span></div>
         <div class="header-actions">
           <button class="icon-btn" onclick="window.router.go('contacts')" title="Contacts">👥</button>
-          <button class="icon-btn" onclick="window.router.go('profile')" title="Profile">👤</button>
-          <button class="icon-btn" onclick="handleLogout()" title="Logout">⏏</button>
+          ${isLoggedIn
+            ? `<button class="icon-btn" onclick="window.router.go('profile')" title="Profile">
+                 ${avatarImg(session.user?.username, 28, 'header-avatar')}
+               </button>
+               <button class="icon-btn" onclick="handleLogout()" title="Logout">⏏</button>`
+            : `<button class="icon-btn" onclick="window.router.go('auth')" title="Login">🔑</button>`
+          }
         </div>
       </header>
 

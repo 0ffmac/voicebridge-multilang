@@ -12,47 +12,42 @@ export async function sendMagicLink(request, env) {
   const token = nanoid(32);
   const expires_at = Date.now() + TOKEN_EXPIRY_MS;
 
-  console.log('1. Got email:', email);
+  // Store token in D1
+  await env.DB.prepare(
+    'INSERT INTO auth_tokens (token, email, expires_at) VALUES (?, ?, ?)'
+  ).bind(token, email.toLowerCase(), expires_at).run();
 
-  try {
-    await env.DB.prepare(
-      'INSERT INTO auth_tokens (token, email, expires_at) VALUES (?, ?, ?)'
-    ).bind(token, email.toLowerCase(), expires_at).run();
-  } catch(dbErr) {
-    console.error('DB Error:', dbErr.message);
-    return err('Database error: ' + dbErr.message, 500);
-  }
-
-  console.log('2. Token saved to DB');
-
+  // Send magic link via Resend
   const magicLink = `${env.APP_URL}/auth/verify?token=${token}`;
-  console.log('3. Magic link:', magicLink);
 
-  try {
-    const res = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${env.RESEND_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from: 'VoiceBridge <onboarding@guardroyal.com>',
-        to: email,
-        subject: 'Your VoiceBridge login link',
-        html: `<a href="${magicLink}">Login to VoiceBridge</a>`,
-      }),
-    });
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${env.RESEND_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      from: 'VoiceBridge <noreply@guardroyal.com>',
+      to: email,
+      subject: 'Your VoiceBridge login link',
+      html: `
+        <h2>Login to VoiceBridge</h2>
+        <p>Click the link below to log in. This link expires in 15 minutes.</p>
+        <a href="${magicLink}" style="
+          background:#38bdf8;
+          color:#000;
+          padding:12px 24px;
+          border-radius:8px;
+          text-decoration:none;
+          font-weight:bold;
+          display:inline-block;
+        ">Login to VoiceBridge</a>
+        <p style="color:#666;font-size:12px;">If you didn't request this, ignore this email.</p>
+      `,
+    }),
+  });
 
-    const resBody = await res.json();
-    console.log('4. Resend response:', res.status, JSON.stringify(resBody));
-
-    if (!res.ok) return err('Failed to send email: ' + JSON.stringify(resBody), 500);
-
-  } catch(fetchErr) {
-    console.error('Fetch Error:', fetchErr.message);
-    return err('Failed to send email: ' + fetchErr.message, 500);
-  }
-
+  if (!res.ok) return err('Failed to send email', 500);
   return ok({ message: 'Magic link sent! Check your email.' });
 }
 
@@ -80,14 +75,16 @@ export async function verifyMagicLink(request, env) {
     'SELECT * FROM users WHERE email = ?'
   ).bind(row.email).first();
 
-  // If new user — create profile
+  // If new user — create with placeholder values
+  let isNewUser = false;
   if (!user) {
+    isNewUser = true;
     const id = nanoid();
     const username = row.email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '') + nanoid(4);
     await env.DB.prepare(
       'INSERT INTO users (id, username, display_name, email, language, created_at) VALUES (?, ?, ?, ?, ?, ?)'
-    ).bind(id, username, username, row.email, 'en', Date.now()).run();
-    user = { id, username, display_name: username, email: row.email, language: 'en' };
+    ).bind(id, username, '', row.email, 'en', Date.now()).run();
+    user = { id, username, display_name: '', email: row.email, language: 'en' };
   }
 
   // Create session
@@ -100,7 +97,7 @@ export async function verifyMagicLink(request, env) {
   return ok({
     session_token: sessionToken,
     user: { id: user.id, username: user.username, display_name: user.display_name, language: user.language },
-    is_new_user: !user.display_name,
+    is_new_user: isNewUser,
   });
 }
 
