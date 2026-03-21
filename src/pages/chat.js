@@ -1,35 +1,37 @@
 // src/pages/chat.js
 import { API } from '../api/client.js';
 import { session } from '../session.js';
-import { LANGUAGES } from '../config.js';
+import { LANGUAGES, SILENCE_TIMEOUT_MS } from '../config.js';
 import { isIOS } from '../recognition.js';
 import { speak, unlockAudio } from '../tts.js';
-import { SILENCE_TIMEOUT_MS } from '../config.js';
+import { avatarImg } from '../avatar.js';
 
 let chatState = {
   friendId: null,
   friendName: null,
   friendLang: null,
+  friendUsername: null,
   phase: 'idle',
   lastTranscript: '',
   lastTranslation: '',
+  lastTranslationSpeechCode: null,
   recognition: null,
   silenceTimer: null,
-  pollTimer: null,          // polling interval
-  lastMessageId: null,      // track last seen message to detect new ones
-  messageCount: 0,          // track count to detect new arrivals
+  pollTimer: null,
+  messageCount: 0,
 };
 
-const POLL_INTERVAL_MS = 8000; // check every 8 seconds
+const POLL_INTERVAL_MS = 8000;
 
 export async function renderChatPage(params) {
   chatState.friendId = params.friendId;
   chatState.friendName = params.friendName;
   chatState.friendLang = params.friendLang;
+  chatState.friendUsername = params.friendUsername || params.friendName;
   chatState.phase = 'idle';
   chatState.lastTranscript = '';
   chatState.lastTranslation = '';
-  chatState.lastMessageId = null;
+  chatState.lastTranslationSpeechCode = null;
   chatState.messageCount = 0;
   stopPolling();
 
@@ -38,10 +40,15 @@ export async function renderChatPage(params) {
       <header>
         <button class="back-btn" onclick="leaveChatPage()">‹</button>
         <div class="chat-header-info">
-          <div class="chat-name">${chatState.friendName}</div>
-          <div class="chat-langs">${getLangFlag(session.user.language)} → ${getLangFlag(chatState.friendLang)}</div>
+          ${avatarImg(chatState.friendUsername, 32, 'chat-header-avatar')}
+          <div>
+            <div class="chat-name">${chatState.friendName}</div>
+            <div class="chat-langs">
+              ${getLangFlag(session.user.language)} → ${getLangFlag(chatState.friendLang)}
+            </div>
+          </div>
         </div>
-        <button class="icon-btn" onclick="leaveChatPage()">👥</button>
+        <button class="icon-btn danger-icon" onclick="confirmDeleteConversation()" title="Delete conversation">🗑</button>
       </header>
 
       <div class="messages-list" id="messagesList">
@@ -58,6 +65,31 @@ export async function renderChatPage(params) {
         </div>
       </div>
     </div>
+
+    <!-- Delete conversation modal -->
+    <div class="modal-overlay" id="deleteConvModal" style="display:none">
+      <div class="modal-card">
+        <div class="modal-icon">🗑</div>
+        <div class="modal-title">Delete Conversation?</div>
+        <div class="modal-body">
+          This will delete all messages with <strong>${chatState.friendName}</strong> for you.
+          They will still see the messages on their end.
+        </div>
+        <button class="danger-btn" onclick="handleDeleteConversation()">Delete for me</button>
+        <button class="ghost-btn" onclick="closeModal()">Cancel</button>
+      </div>
+    </div>
+
+    <!-- Delete single message modal -->
+    <div class="modal-overlay" id="deleteMsgModal" style="display:none">
+      <div class="modal-card">
+        <div class="modal-icon">🗑</div>
+        <div class="modal-title">Delete Message?</div>
+        <div class="modal-body">This message will be removed for you.</div>
+        <button class="danger-btn" id="confirmDeleteMsgBtn">Delete</button>
+        <button class="ghost-btn" onclick="closeModal()">Cancel</button>
+      </div>
+    </div>
   `;
 
   document.addEventListener('touchend', unlockAudio, { once: true });
@@ -71,50 +103,75 @@ window.leaveChatPage = () => {
   window.router.go('contacts');
 };
 
-// ── Polling ────────────────────────────────────────────────────────────────────
+window.closeModal = () => {
+  document.querySelectorAll('.modal-overlay').forEach(m => m.style.display = 'none');
+};
+
+// ── Delete conversation ────────────────────────────────────────────────────────
+window.confirmDeleteConversation = () => {
+  document.getElementById('deleteConvModal').style.display = 'flex';
+};
+
+window.handleDeleteConversation = async () => {
+  try {
+    await API.delete(`/api/messages/conversation/${chatState.friendId}`);
+    closeModal();
+    chatState.messageCount = 0;
+    await loadMessages();
+  } catch (err) {
+    closeModal();
+    setChatStatus('Error: ' + err.message);
+  }
+};
+
+// ── Delete single message ─────────────────────────────────────────────────────
+window.confirmDeleteMessage = (messageId) => {
+  const modal = document.getElementById('deleteMsgModal');
+  modal.style.display = 'flex';
+  document.getElementById('confirmDeleteMsgBtn').onclick = () => handleDeleteMessage(messageId);
+};
+
+async function handleDeleteMessage(messageId) {
+  try {
+    await API.delete(`/api/messages/${messageId}`);
+    closeModal();
+    const { messages } = await API.get(`/api/messages/${chatState.friendId}`);
+    chatState.messageCount = messages.length;
+    renderMessages(messages);
+  } catch (err) {
+    closeModal();
+    setChatStatus('Error: ' + err.message);
+  }
+}
+
+// ── Polling ───────────────────────────────────────────────────────────────────
 function startPolling() {
   stopPolling();
   chatState.pollTimer = setInterval(pollMessages, POLL_INTERVAL_MS);
 }
 
 function stopPolling() {
-  if (chatState.pollTimer) {
-    clearInterval(chatState.pollTimer);
-    chatState.pollTimer = null;
-  }
+  if (chatState.pollTimer) { clearInterval(chatState.pollTimer); chatState.pollTimer = null; }
 }
 
 async function pollMessages() {
-  // Don't poll while user is recording or processing — avoid interrupting
   if (chatState.phase === 'recording' || chatState.phase === 'processing') return;
-
   try {
     const { messages } = await API.get(`/api/messages/${chatState.friendId}`);
     const newCount = messages.length;
-
     if (newCount > chatState.messageCount) {
-      const isScrolledToBottom = isAtBottom();
+      const atBottom = isAtBottom();
       renderMessages(messages);
-
-      // Only auto-scroll if user was already at the bottom
-      if (isScrolledToBottom) scrollToBottom();
-
-      // Show new message indicator if user scrolled up
-      if (!isScrolledToBottom && newCount > chatState.messageCount) {
-        showNewMessageBadge(newCount - chatState.messageCount);
-      }
-
+      if (atBottom) scrollToBottom();
+      else showNewMessageBadge(newCount - chatState.messageCount);
       chatState.messageCount = newCount;
     }
-  } catch(e) {
-    // Silently ignore poll errors — don't show error to user
-  }
+  } catch(e) {}
 }
 
 function isAtBottom() {
   const el = document.getElementById('messagesList');
-  if (!el) return true;
-  return el.scrollHeight - el.scrollTop - el.clientHeight < 60;
+  return el ? el.scrollHeight - el.scrollTop - el.clientHeight < 60 : true;
 }
 
 function scrollToBottom() {
@@ -123,20 +180,16 @@ function scrollToBottom() {
 }
 
 function showNewMessageBadge(count) {
-  // Remove existing badge
   document.getElementById('newMsgBadge')?.remove();
-
   const badge = document.createElement('div');
   badge.id = 'newMsgBadge';
   badge.className = 'new-msg-badge';
   badge.textContent = `↓ ${count} new message${count > 1 ? 's' : ''}`;
-  badge.onclick = () => {
-    scrollToBottom();
-    badge.remove();
-  };
+  badge.onclick = () => { scrollToBottom(); badge.remove(); };
   document.querySelector('.chat-input-bar')?.prepend(badge);
 }
 
+// ── Load & render messages ────────────────────────────────────────────────────
 async function loadMessages() {
   try {
     const { messages } = await API.get(`/api/messages/${chatState.friendId}`);
@@ -160,38 +213,43 @@ function renderMessages(messages) {
     const time = new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const mainText = isMine ? m.original_text : m.translated_text;
     const subText  = isMine ? m.translated_text : m.original_text;
-    const playLang = isMine ? chatState.friendLang : session.user.language;
-    const playText = isMine ? m.translated_text : m.original_text;
+    const playText = m.translated_text;
+    const playLang = m.translated_lang;
     return `
-      <div class="message ${isMine ? 'message-mine' : 'message-theirs'}">
+      <div class="message ${isMine ? 'message-mine' : 'message-theirs'}"
+           oncontextmenu="confirmDeleteMessage('${m.id}'); return false;">
         <div class="message-bubble">
           <div class="message-original">${mainText}</div>
           <div class="message-translation">${subText}</div>
-          <button class="message-play"
-            onclick="playMessage('${encodeURIComponent(playText)}','${playLang}')">▶</button>
+          <div class="message-actions">
+            <button class="message-play"
+              onclick="playMessage('${encodeURIComponent(playText)}','${playLang}')">▶</button>
+            <button class="message-delete"
+              onclick="confirmDeleteMessage('${m.id}')">🗑</button>
+          </div>
         </div>
         <div class="message-time">${time}</div>
       </div>
     `;
   }).join('');
-  el.scrollTop = el.scrollHeight;
 }
 
 window.playMessage = (text, lang) => {
-  speak(decodeURIComponent(text), lang, null);
+  const speechCode = LANGUAGES.find(l => l.code === lang)?.speechCode || lang;
+  speak(decodeURIComponent(text), speechCode, null);
 };
 
+// ── Mic handling ──────────────────────────────────────────────────────────────
 window.handleChatMic = () => {
   if (isIOS && chatState.phase === 'done' && chatState.lastTranslation) {
-    speak(chatState.lastTranslation, chatState.friendLang, () => {
+    const speechCode = chatState.lastTranslationSpeechCode || chatState.friendLang;
+    speak(chatState.lastTranslation, speechCode, () => {
       chatState.phase = 'idle';
       setChatUIIdle();
     });
     return;
   }
-
   if (chatState.phase === 'processing') return;
-
   if (chatState.phase === 'recording') {
     chatState.phase = 'stopping';
     stopChatListening(true);
@@ -202,10 +260,7 @@ window.handleChatMic = () => {
 
 function startChatListening() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) {
-    setChatStatus('Speech recognition not supported on this browser.');
-    return;
-  }
+  if (!SR) { setChatStatus('Speech recognition not supported.'); return; }
 
   stopChatListening(false);
 
@@ -237,10 +292,7 @@ function startChatListening() {
       const result = event.results[event.results.length - 1];
       chatState.lastTranscript = result[0].transcript.trim();
       document.getElementById('chatTranscript').textContent = chatState.lastTranscript;
-      if (result.isFinal) {
-        clearTimeout(chatState.silenceTimer);
-        stopChatListening(true);
-      }
+      if (result.isFinal) { clearTimeout(chatState.silenceTimer); stopChatListening(true); }
     }
   };
 
@@ -248,11 +300,8 @@ function startChatListening() {
     clearTimeout(chatState.silenceTimer);
     chatState.phase = 'idle';
     setChatUIIdle();
-    if (e.error === 'not-allowed') {
-      setChatStatus('Microphone permission denied. Allow mic in browser settings.');
-    } else if (e.error !== 'aborted' && e.error !== 'no-speech') {
-      setChatStatus('Mic error: ' + e.error);
-    }
+    if (e.error === 'not-allowed') setChatStatus('Microphone permission denied.');
+    else if (e.error !== 'aborted' && e.error !== 'no-speech') setChatStatus('Mic error: ' + e.error);
   };
 
   rec.onend = () => {
@@ -291,6 +340,7 @@ function resetChatSilenceTimer() {
   }, SILENCE_TIMEOUT_MS);
 }
 
+// ── Send message ──────────────────────────────────────────────────────────────
 async function sendVoiceMessage(text) {
   chatState.phase = 'processing';
   setChatUIProcessing(text);
@@ -300,10 +350,12 @@ async function sendVoiceMessage(text) {
       receiver_id: chatState.friendId,
       original_text: text,
       original_lang: session.user.language,
-      target_lang: chatState.friendLang,
     });
 
     chatState.lastTranslation = msg.translated_text;
+    const translatedSpeechCode = LANGUAGES.find(l => l.code === msg.translated_lang)?.speechCode || msg.translated_lang;
+    chatState.lastTranslationSpeechCode = translatedSpeechCode;
+
     const { messages } = await API.get(`/api/messages/${chatState.friendId}`);
     chatState.messageCount = messages.length;
     renderMessages(messages);
@@ -313,7 +365,7 @@ async function sendVoiceMessage(text) {
       chatState.phase = 'done';
       setChatUIReadyToSpeak();
     } else {
-      await new Promise(resolve => speak(msg.translated_text, chatState.friendLang, resolve));
+      await new Promise(resolve => speak(msg.translated_text, translatedSpeechCode, resolve));
       chatState.phase = 'idle';
       setChatUIIdle();
     }
@@ -324,37 +376,33 @@ async function sendVoiceMessage(text) {
   }
 }
 
+// ── UI helpers ────────────────────────────────────────────────────────────────
 function setChatUIIdle() {
   document.getElementById('chatMicBtn').className = 'chat-mic-btn';
   document.getElementById('chatMicIcon').textContent = '🎙️';
   document.getElementById('chatStatus').textContent = 'Tap mic to send a voice message';
   document.getElementById('chatTranscript').textContent = '';
 }
-
 function setChatUIRecording() {
   document.getElementById('chatMicBtn').className = 'chat-mic-btn recording';
   document.getElementById('chatMicIcon').textContent = '⏹';
   document.getElementById('chatStatus').textContent = 'Listening... tap to stop';
 }
-
 function setChatUIProcessing(text) {
   document.getElementById('chatMicBtn').className = 'chat-mic-btn processing';
   document.getElementById('chatMicIcon').textContent = '⟳';
   document.getElementById('chatStatus').textContent = 'Translating & sending...';
   document.getElementById('chatTranscript').textContent = text;
 }
-
 function setChatUIReadyToSpeak() {
   document.getElementById('chatMicBtn').className = 'chat-mic-btn';
   document.getElementById('chatMicIcon').textContent = '🔊';
   document.getElementById('chatStatus').textContent = '↑ Tap to hear your translation';
 }
-
 function setChatStatus(msg) {
   const el = document.getElementById('chatStatus');
   if (el) el.textContent = msg;
 }
-
 function getLangFlag(code) {
   return LANGUAGES.find(l => l.code === code)?.flag || '🌐';
 }

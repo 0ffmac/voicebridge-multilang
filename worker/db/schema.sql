@@ -61,3 +61,4 @@ CREATE INDEX IF NOT EXISTS idx_friends_receiver ON friends(receiver_id, status);
 CREATE INDEX IF NOT EXISTS idx_friends_requester ON friends(requester_id, status);
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 CREATE INDEX IF NOT EXISTS idx_auth_tokens_email ON auth_tokens(email);
+

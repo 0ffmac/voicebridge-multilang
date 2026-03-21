@@ -22,7 +22,6 @@ export async function updateMe(request, env) {
 
   const { display_name, language, username } = await request.json();
 
-  // Check username not taken by someone else
   if (username) {
     const existing = await env.DB.prepare(
       'SELECT id FROM users WHERE username = ? AND id != ?'
@@ -31,13 +30,17 @@ export async function updateMe(request, env) {
   }
 
   await env.DB.prepare(
-    'UPDATE users SET display_name = COALESCE(?, display_name), language = COALESCE(?, language), username = COALESCE(?, username) WHERE id = ?'
+    `UPDATE users SET
+     display_name = COALESCE(?, display_name),
+     language = COALESCE(?, language),
+     username = COALESCE(?, username)
+     WHERE id = ?`
   ).bind(display_name || null, language || null, username?.toLowerCase() || null, session.user_id).run();
 
   return ok({ message: 'Profile updated' });
 }
 
-// GET /api/users/search?q=username
+// GET /api/users/search?q=
 export async function searchUsers(request, env) {
   const session = await requireAuth(request, env);
   if (!session) return err('Unauthorized', 401);
@@ -48,12 +51,46 @@ export async function searchUsers(request, env) {
 
   const results = await env.DB.prepare(
     `SELECT id, username, display_name, language FROM users
-     WHERE (username LIKE ? OR display_name LIKE ?)
-     AND id != ?
+     WHERE (username LIKE ? OR display_name LIKE ?) AND id != ?
      LIMIT 10`
   ).bind(`%${q}%`, `%${q}%`, session.user_id).all();
 
   return ok({ users: results.results });
+}
+
+// DELETE /api/users/me — delete account and all associated data
+export async function deleteMe(request, env) {
+  const session = await requireAuth(request, env);
+  if (!session) return err('Unauthorized', 401);
+
+  const userId = session.user_id;
+
+  // Delete all messages sent or received
+  await env.DB.prepare(
+    'DELETE FROM messages WHERE sender_id = ? OR receiver_id = ?'
+  ).bind(userId, userId).run();
+
+  // Delete all friend relationships
+  await env.DB.prepare(
+    'DELETE FROM friends WHERE requester_id = ? OR receiver_id = ?'
+  ).bind(userId, userId).run();
+
+  // Delete all sessions
+  await env.DB.prepare(
+    'DELETE FROM sessions WHERE user_id = ?'
+  ).bind(userId).run();
+
+  // Delete auth tokens
+  await env.DB.prepare(
+    'DELETE FROM auth_tokens WHERE email = ?'
+  ).bind(session.email).run();
+
+  // Delete user
+  await env.DB.prepare(
+    'DELETE FROM users WHERE id = ?'
+  ).bind(userId).run();
+
+  return ok({ message: 'Account deleted' });
 }
 
 function ok(data) {

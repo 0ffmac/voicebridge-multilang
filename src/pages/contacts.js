@@ -2,6 +2,7 @@
 import { API } from '../api/client.js';
 import { session } from '../session.js';
 import { LANGUAGES } from '../config.js';
+import { avatarImg } from '../avatar.js';
 
 export async function renderContactsPage() {
   document.getElementById('app').innerHTML = `
@@ -10,14 +11,18 @@ export async function renderContactsPage() {
         <div class="logo">Voice<span>Bridge</span></div>
         <div class="header-actions">
           <button class="icon-btn" onclick="window.router.go('translator')" title="Translator">🌐</button>
-          <button class="icon-btn" onclick="window.router.go('profile')" title="Profile">👤</button>
+          <button class="icon-btn" onclick="window.router.go('profile')" title="Profile">
+            ${avatarImg(session.user?.username, 28, 'header-avatar')}
+          </button>
         </div>
       </header>
 
       <!-- Search -->
       <div class="search-bar">
-        <input type="text" id="searchInput" placeholder="Search users by @username..."
-          oninput="handleSearch(this.value)" autocomplete="off" />
+        <input type="text" id="searchInput"
+          placeholder="Search users by @username..."
+          oninput="handleSearch(this.value)"
+          autocomplete="off" />
       </div>
 
       <div id="searchResults" style="display:none">
@@ -57,8 +62,9 @@ async function loadFriends() {
     }
 
     el.innerHTML = friends.map(f => `
-      <div class="contact-card" onclick="window.router.go('chat', { friendId: '${f.user_id}', friendName: '${f.display_name}', friendLang: '${f.language}' })">
-        <div class="contact-avatar">${f.display_name[0].toUpperCase()}</div>
+      <div class="contact-card"
+        onclick="window.router.go('chat', { friendId: '${f.user_id}', friendName: '${f.display_name}', friendLang: '${f.language}', friendUsername: '${f.username}' })">
+        ${avatarImg(f.username, 42, 'contact-avatar-img')}
         <div class="contact-info">
           <div class="contact-name">${f.display_name}</div>
           <div class="contact-lang">${getLangFlag(f.language)} ${getLangLabel(f.language)}</div>
@@ -81,7 +87,7 @@ async function loadPending() {
     section.style.display = 'block';
     document.getElementById('pendingList').innerHTML = requests.map(r => `
       <div class="contact-card">
-        <div class="contact-avatar">${r.display_name[0].toUpperCase()}</div>
+        ${avatarImg(r.username, 42, 'contact-avatar-img')}
         <div class="contact-info">
           <div class="contact-name">${r.display_name}</div>
           <div class="contact-lang">@${r.username}</div>
@@ -107,7 +113,7 @@ window.handleSearch = (q) => {
       document.getElementById('searchList').innerHTML = users.length
         ? users.map(u => `
             <div class="contact-card">
-              <div class="contact-avatar">${u.display_name[0].toUpperCase()}</div>
+              ${avatarImg(u.username, 42, 'contact-avatar-img')}
               <div class="contact-info">
                 <div class="contact-name">${u.display_name}</div>
                 <div class="contact-lang">@${u.username}</div>
@@ -141,9 +147,5 @@ window.handleDecline = async (id) => {
   await renderContactsPage();
 };
 
-function getLangFlag(code) {
-  return LANGUAGES.find(l => l.code === code)?.flag || '🌐';
-}
-function getLangLabel(code) {
-  return LANGUAGES.find(l => l.code === code)?.label || code;
-}
+function getLangFlag(code) { return LANGUAGES.find(l => l.code === code)?.flag || '🌐'; }
+function getLangLabel(code) { return LANGUAGES.find(l => l.code === code)?.label || code; }

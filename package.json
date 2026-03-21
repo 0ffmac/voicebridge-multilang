@@ -14,6 +14,7 @@
 		"wrangler": "^4.76.0"
 	},
 	"dependencies": {
+		"@multiavatar/multiavatar": "^1.0.7",
 		"nanoid": "^5.1.7"
 	}
 }
