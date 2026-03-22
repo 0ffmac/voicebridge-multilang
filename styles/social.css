@@ -685,3 +685,45 @@
   gap: 10px;
   justify-content: center;
 }
+
+/* ── Push notification banner ─────────────────────────────────────────────── */
+.push-banner {
+  background: linear-gradient(135deg, rgba(56,189,248,0.12), rgba(129,140,248,0.12));
+  border: 1px solid rgba(56,189,248,0.3);
+  border-radius: 12px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 0.8rem;
+  color: var(--text);
+  line-height: 1.4;
+}
+.push-banner-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.push-banner-btn {
+  background: var(--accent);
+  color: #000;
+  border: none;
+  border-radius: 8px;
+  padding: 5px 12px;
+  font-family: 'Syne', sans-serif;
+  font-weight: 700;
+  font-size: 0.8rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.push-banner-dismiss {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.9rem;
+  padding: 4px;
+}

@@ -12,11 +12,57 @@ import {
 } from './ui.js';
 import { router } from './router.js';
 import { session } from './session.js';
+import { registerServiceWorker, subscribeToPush, isPushSupported, requestPushPermission, getPushPermission } from './push.js';
 
 // ─── Boot ─────────────────────────────────────────────────────────────────────
 preloadVoices();
 window.router = router;
+
+// Register service worker immediately
+registerServiceWorker();
+
 router.init();
+
+// Subscribe silently if permission already granted
+if (session.isLoggedIn() && isPushSupported() && getPushPermission() === 'granted') {
+  subscribeToPush().catch(() => {});
+}
+
+// ─── Push banner handlers — in app.js so always available ────────────────────
+window.handleEnablePush = async () => {
+  const sheet = document.getElementById('pushSheet');
+  const banner = document.getElementById('pushBanner');
+  const el = sheet || banner;
+  if (el) el.innerHTML = `
+    <div style="padding:24px; text-align:center; color:#94a3b8; font-family:sans-serif;">
+      🔔 Requesting permission...
+    </div>`;
+
+  try {
+    const granted = await requestPushPermission();
+    if (el) {
+      if (granted) {
+        el.innerHTML = `<div style="padding:24px;text-align:center;color:#34d399;font-family:sans-serif;font-size:16px;">✅ Notifications enabled!</div>`;
+        setTimeout(() => el?.remove(), 2000);
+      } else {
+        const perm = getPushPermission();
+        el.innerHTML = `<div style="padding:24px;text-align:center;color:#f87171;font-family:sans-serif;font-size:14px;line-height:1.6;">
+          ❌ Failed (permission: ${perm})<br>
+          <span style="color:#64748b;font-size:12px">Check browser notification settings</span><br>
+          <button onclick="this.parentElement.parentElement.remove()" style="margin-top:12px;padding:8px 16px;background:#1e3a5f;color:#94a3b8;border:none;border-radius:8px;cursor:pointer">Close</button>
+        </div>`;
+      }
+    }
+  } catch(err) {
+    alert('Push error: ' + err.message);
+    el?.remove();
+  }
+};
+
+window.dismissPushBanner = () => {
+  document.getElementById('pushSheet')?.remove();
+  document.getElementById('pushBanner')?.remove();
+};
 
 // ─── initTranslator — called after translator page DOM is rendered ────────────
 export function initTranslator() {

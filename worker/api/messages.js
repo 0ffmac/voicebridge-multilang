@@ -1,6 +1,7 @@
 // worker/api/messages.js
 import { requireAuth } from './auth.js';
 import { nanoid } from 'nanoid';
+import { sendPushToUser } from './push.js';
 
 // GET /api/messages/:friendId
 export async function getConversation(request, env, friendId) {
@@ -58,13 +59,11 @@ export async function sendMessage(request, env) {
     WHERE ((requester_id = ? AND receiver_id = ?) OR (requester_id = ? AND receiver_id = ?))
     AND status = 'accepted'
   `).bind(session.user_id, receiver_id, receiver_id, session.user_id).first();
-
   if (!friendship) return err('Not friends with this user', 403);
 
   const receiver = await env.DB.prepare(
     'SELECT language FROM users WHERE id = ?'
   ).bind(receiver_id).first();
-
   if (!receiver) return err('Receiver not found', 404);
   const target_lang = receiver.language;
 
@@ -86,10 +85,24 @@ export async function sendMessage(request, env) {
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(id, session.user_id, receiver_id, original_text, original_lang, translated_text, target_lang, Date.now()).run();
 
+  // Send push notification to receiver
+  const sender = await env.DB.prepare(
+    'SELECT display_name FROM users WHERE id = ?'
+  ).bind(session.user_id).first();
+
+  await sendPushToUser(env, receiver_id, {
+    title: `💬 ${sender?.display_name || 'VoiceBridge'}`,
+    body: translated_text.length > 80 ? translated_text.substring(0, 80) + '...' : translated_text,
+    tag: `chat-${session.user_id}`,
+    url: '/',
+    friendId: session.user_id,
+    friendName: sender?.display_name || '',
+  });
+
   return ok({ id, original_text, translated_text, translated_lang: target_lang, created_at: Date.now() });
 }
 
-// DELETE /api/messages/:id — soft delete single message
+// DELETE /api/messages/:id
 export async function deleteMessage(request, env, messageId) {
   const session = await requireAuth(request, env);
   if (!session) return err('Unauthorized', 401);
@@ -105,7 +118,6 @@ export async function deleteMessage(request, env, messageId) {
     await env.DB.prepare('UPDATE messages SET deleted_by_receiver = 1 WHERE id = ?').bind(messageId).run();
   }
 
-  // Clean up if both sides deleted
   const updated = await env.DB.prepare(
     'SELECT deleted_by_sender, deleted_by_receiver FROM messages WHERE id = ?'
   ).bind(messageId).first();
@@ -142,7 +154,6 @@ function ok(data) {
     headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
   });
 }
-
 function err(message, status = 400) {
   return new Response(JSON.stringify({ error: message }), {
     status,

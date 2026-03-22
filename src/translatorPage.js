@@ -1,10 +1,14 @@
 // src/translatorPage.js
-// Wraps the existing translator UI as a routable page
 import { session } from './session.js';
 import { avatarImg } from './avatar.js';
+import { isPushSupported, getPushPermission, subscribeToPush } from './push.js';
 
 export function renderTranslatorPage() {
   const isLoggedIn = session.isLoggedIn();
+
+  // Only show banner if permission has never been asked ('default')
+  const permission = isPushSupported() ? getPushPermission() : 'unsupported';
+  const showPushBanner = isLoggedIn && permission === 'default';
 
   document.getElementById('app').innerHTML = `
     <div class="app">
@@ -24,14 +28,12 @@ export function renderTranslatorPage() {
 
       <div class="error-msg" id="errorMsg"></div>
 
-      <!-- Language Bar -->
       <div class="lang-bar">
         <select class="lang-select" id="srcSelect" onchange="onSourceLangChange(this.value)"></select>
         <button class="swap-btn" onclick="onSwapLanguage()" title="Swap">⇄</button>
         <select class="lang-select" id="tgtSelect" onchange="onTargetLangChange(this.value)"></select>
       </div>
 
-      <!-- Input Card -->
       <div class="card" id="inputCard">
         <div class="card-label">// YOU SAID</div>
         <div class="card-text placeholder" id="inputText">Tap the mic and speak...</div>
@@ -40,7 +42,6 @@ export function renderTranslatorPage() {
         </div>
       </div>
 
-      <!-- Output Card -->
       <div class="card result-card" id="outputCard">
         <div class="card-label">// TRANSLATION</div>
         <div class="card-text placeholder" id="outputText">Translation will appear here...</div>
@@ -50,7 +51,6 @@ export function renderTranslatorPage() {
         </div>
       </div>
 
-      <!-- Mic Section -->
       <div class="mic-section">
         <div class="mic-status" id="micStatus">Tap to speak</div>
         <div class="waveform" id="waveform">
@@ -76,8 +76,64 @@ export function renderTranslatorPage() {
     </div>
   `;
 
-  // Re-init translator state after DOM render
   import('./app.js').then(m => m.initTranslator());
+
+  // Show push sheet only if permission never asked
+  if (showPushBanner) {
+    showPushSheet();
+  }
+
+  // Already granted — just subscribe silently (saves to DB if not already saved)
+  if (isLoggedIn && isPushSupported() && permission === 'granted') {
+    subscribeToPush().catch(() => {});
+  }
+}
+
+function showPushSheet() {
+  document.getElementById('pushSheet')?.remove();
+
+  const sheet = document.createElement('div');
+  sheet.id = 'pushSheet';
+
+  Object.assign(sheet.style, {
+    position: 'fixed',
+    bottom: '0',
+    left: '0',
+    right: '0',
+    background: '#0d1428',
+    borderTop: '3px solid #38bdf8',
+    borderRadius: '20px 20px 0 0',
+    padding: '32px 24px 48px',
+    zIndex: '99999',
+    boxShadow: '0 -8px 40px rgba(0,0,0,0.6)',
+  });
+
+  sheet.innerHTML = `
+    <p style="font-size:40px;text-align:center;margin:0 0 16px">🔔</p>
+    <p style="font-size:18px;font-weight:bold;color:#e2e8f0;
+              text-align:center;margin:0 0 10px">Enable Notifications</p>
+    <p style="font-size:14px;color:#94a3b8;text-align:center;
+              line-height:1.6;margin:0 0 24px">
+      Get notified when friends send you messages,<br>even when the app is closed.
+    </p>
+    <button id="pushEnableBtn"
+      style="display:block;width:100%;background:#38bdf8;color:#000;
+             border:none;border-radius:12px;padding:16px;font-size:16px;
+             font-weight:bold;cursor:pointer;margin-bottom:12px">
+      Enable Notifications
+    </button>
+    <button id="pushDismissBtn"
+      style="display:block;width:100%;background:transparent;
+             color:#64748b;border:1px solid #1e3a5f;border-radius:12px;
+             padding:14px;font-size:14px;cursor:pointer">
+      Not now
+    </button>
+  `;
+
+  document.body.appendChild(sheet);
+
+  document.getElementById('pushEnableBtn').addEventListener('click', window.handleEnablePush);
+  document.getElementById('pushDismissBtn').addEventListener('click', window.dismissPushBanner);
 }
 
 window.handleLogout = async () => {
@@ -87,5 +143,5 @@ window.handleLogout = async () => {
   } catch(e) {}
   const { session } = await import('./session.js');
   session.clear();
-  window.router.go('auth');
+  window.router.go('translator');
 };
