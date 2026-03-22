@@ -6,6 +6,15 @@ import { isIOS } from '../recognition.js';
 import { speak, unlockAudio } from '../tts.js';
 import { avatarImg } from '../avatar.js';
 
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 let chatState = {
   friendId: null,
   friendName: null,
@@ -211,8 +220,8 @@ function renderMessages(messages) {
   el.innerHTML = messages.map(m => {
     const isMine = m.sender_id === session.user.id;
     const time = new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const mainText = isMine ? m.original_text : m.translated_text;
-    const subText  = isMine ? m.translated_text : m.original_text;
+    const mainText = escapeHtml(isMine ? m.original_text : m.translated_text);
+    const subText  = escapeHtml(isMine ? m.translated_text : m.original_text);
     const playText = m.translated_text;
     const playLang = m.translated_lang;
     return `

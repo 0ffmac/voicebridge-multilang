@@ -73,11 +73,6 @@ export function renderProfilePage(isNew = false) {
 
           <div style="margin-top:32px; border-top:1px solid var(--border); padding-top:20px;">
             <div style="font-size:0.75rem; color:var(--muted); margin-bottom:12px; text-transform:uppercase; letter-spacing:0.1em;">
-              Debug Tools
-            </div>
-            <button class="primary-btn" style="background:var(--success); margin-bottom:12px;" onclick="testLocalNotification()">🔔 Test Local Notification</button>
-            <button class="primary-btn" style="background:var(--primary); margin-bottom:12px;" onclick="sendRealTestPush()">🚀 Send Real Test Push</button>
-            <div style="font-size:0.75rem; color:var(--muted); margin-bottom:12px; text-transform:uppercase; letter-spacing:0.1em;">
               Danger Zone
             </div>
             <button class="danger-btn" onclick="confirmDeleteAccount()">🗑 Delete Account</button>
@@ -114,30 +109,6 @@ window.updateAvatarPreview = (username) => {
     preview.innerHTML = `<img src="${url}" class="avatar-preview-img" />`;
   } else {
     preview.innerHTML = `<div class="avatar-preview-fallback">${(username || 'U')[0].toUpperCase()}</div>`;
-  }
-};
-
-window.testLocalNotification = async () => {
-  if (!('serviceWorker' in navigator)) return alert('SW not supported');
-  const reg = await navigator.serviceWorker.ready;
-  if (!reg) return alert('SW not ready');
-  
-  const permission = await Notification.requestPermission();
-  if (permission !== 'granted') return alert('Permission denied');
-
-  reg.showNotification('VoiceBridge Test', {
-    body: 'If you see this, notifications are working on your phone! ✅',
-    icon: '/public/icon-192.png',
-    badge: '/public/badge-72.png',
-  });
-};
-
-window.sendRealTestPush = async () => {
-  try {
-    await API.post('/api/push/test', {});
-    alert('Real test push triggered! Check your notifications in a few seconds.');
-  } catch (err) {
-    alert('Failed to trigger test push: ' + err.message);
   }
 };
 

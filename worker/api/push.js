@@ -28,13 +28,6 @@ export async function unsubscribe(request, env) {
   return ok({ message: 'Unsubscribed' });
 }
 
-export async function testPush(request, env) {
-  const session = await requireAuth(request, env);
-  if (!session) return err('Unauthorized', 401);
-  await sendPushToUser(env, session.user_id, { title: 'VoiceBridge', body: 'Encryption verified! ✅' });
-  return ok({ message: 'Test push triggered' });
-}
-
 export async function sendPushToUser(env, userId, payload) {
   const subs = await env.DB.prepare('SELECT * FROM push_subscriptions WHERE user_id = ?').bind(userId).all();
   if (!subs.results?.length) return;
