@@ -43,11 +43,11 @@ export async function subscribeToPush() {
       new Promise((_, reject) => setTimeout(() => reject(new Error('SW ready timeout')), 5000))
     ]);
 
-    // Force fresh subscription to ensure it matches current server VAPID key
     let existing = await reg.pushManager.getSubscription();
     if (existing) {
-      console.log('Unsubscribing old/existing push token...');
-      await existing.unsubscribe();
+      console.log('Existing push subscription found, saving to server...');
+      await API.post('/api/push/subscribe', existing.toJSON());
+      return true;
     }
 
     console.log('Fetching VAPID key from server...');

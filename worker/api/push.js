@@ -10,8 +10,13 @@ export async function subscribe(request, env) {
   if (!session) return err('Unauthorized', 401);
   const { endpoint, keys } = await request.json();
   if (!endpoint || !keys?.p256dh || !keys?.auth) return err('Invalid subscription', 400);
-  await env.DB.prepare('DELETE FROM push_subscriptions WHERE user_id = ?').bind(session.user_id).run();
-  await env.DB.prepare(`INSERT INTO push_subscriptions (id, user_id, endpoint, p256dh, auth, created_at) VALUES (?, ?, ?, ?, ?, ?)`).bind(nanoid(), session.user_id, endpoint, keys.p256dh, keys.auth, Date.now()).run();
+  await env.DB.prepare(`
+    INSERT INTO push_subscriptions (id, user_id, endpoint, p256dh, auth, created_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+    ON CONFLICT(user_id, endpoint) DO UPDATE SET
+      p256dh = excluded.p256dh,
+      auth = excluded.auth
+  `).bind(nanoid(), session.user_id, endpoint, keys.p256dh, keys.auth, Date.now()).run();
   return ok({ message: 'Subscribed' });
 }
 
