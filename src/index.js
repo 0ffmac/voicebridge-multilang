@@ -1,5 +1,5 @@
 // src/index.js - Main Worker Router
-import { sendMagicLink, verifyMagicLink, logout } from '../worker/api/auth.js';
+import { sendMagicLink, verifyMagicLink, logout, claimSession } from '../worker/api/auth.js';
 import { getMe, updateMe, searchUsers, deleteMe } from '../worker/api/users.js';
 import { listFriends, pendingRequests, sendInvite, acceptInvite, declineInvite } from '../worker/api/friends.js';
 import { getConversation, getUnreadCounts, sendMessage, deleteMessage, deleteConversation } from '../worker/api/messages.js';
@@ -26,6 +26,7 @@ export default {
       if (path === '/api/auth/send-link' && method === 'POST') return await sendMagicLink(request, env);
       if (path === '/api/auth/verify'    && method === 'GET')  return await verifyMagicLink(request, env);
       if (path === '/api/auth/logout'    && method === 'POST') return await logout(request, env);
+      if (path === '/api/auth/claim-session' && method === 'GET') return await claimSession(request, env);
 
       // ── Translation ───────────────────────────────────────────────────────
       if (path === '/translate' && method === 'POST') return await handleTranslate(request, env);

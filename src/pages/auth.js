@@ -1,6 +1,6 @@
 // src/pages/auth.js
 import { API } from '../api/client.js';
-import { session } from '../session.js';
+import { session, getDeviceId } from '../session.js';
 
 export function renderAuthPage(redirectPage = 'contacts', redirectParams = {}) {
   window._authRedirect = { page: redirectPage, params: redirectParams };
@@ -91,7 +91,7 @@ window.handleSendLink = async () => {
   btn.disabled = true;
 
   try {
-    await API.post('/api/auth/send-link', { email });
+    await API.post('/api/auth/send-link', { email, device_id: getDeviceId() });
     document.getElementById('sentEmail').textContent = email;
     document.getElementById('authForm').style.display = 'none';
     document.getElementById('authSent').style.display = 'block';
