@@ -30,3 +30,14 @@ export const session = {
     return !!this.token && !!this.user;
   },
 };
+
+// Generate or retrieve a stable device ID for this browser/PWA install
+export function getDeviceId() {
+  let id = localStorage.getItem('vb_device_id');
+  if (!id) {
+    // Generate a random device ID — stays the same for this install
+    id = 'dev_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+    localStorage.setItem('vb_device_id', id);
+  }
+  return id;
+}
