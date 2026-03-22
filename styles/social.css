@@ -303,48 +303,51 @@
   gap: 10px;
 }
 
-.message { display: flex; flex-direction: column; max-width: 80%; }
+.message { display: flex; flex-direction: column; max-width: 82%; }
 .message-mine { align-self: flex-end; align-items: flex-end; }
 .message-theirs { align-self: flex-start; align-items: flex-start; }
 
 .message-bubble {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 12px 14px;
+  border-radius: 18px 18px 18px 4px;
+  padding: 10px 14px 8px;
   position: relative;
+  min-width: 120px;
 }
 .message-mine .message-bubble {
-  background: linear-gradient(135deg, rgba(56,189,248,0.1), rgba(129,140,248,0.1));
-  border-color: rgba(56,189,248,0.2);
+  background: linear-gradient(135deg, rgba(56,189,248,0.15), rgba(129,140,248,0.12));
+  border-color: rgba(56,189,248,0.25);
+  border-radius: 18px 18px 4px 18px;
 }
 
 .message-original {
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   color: var(--text);
   line-height: 1.5;
   margin-bottom: 4px;
+  word-break: break-word;
 }
 .message-translation {
   font-size: 0.8rem;
   color: var(--muted);
   line-height: 1.4;
   font-style: italic;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
+  word-break: break-word;
 }
-.message-play {
-  background: none;
-  border: none;
-  color: var(--accent);
-  cursor: pointer;
-  font-size: 0.75rem;
-  padding: 0;
+.message-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 2px;
 }
 .message-time {
   font-size: 0.65rem;
   color: var(--muted);
-  margin-top: 4px;
-  padding: 0 4px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 /* ── Chat input bar ───────────────────────────────────────────────────────── */
@@ -376,8 +379,8 @@
 .chat-controls { display: flex; justify-content: center; }
 
 .chat-mic-btn {
-  width: 64px;
-  height: 64px;
+  width: 76px;
+  height: 76px;
   border-radius: 50%;
   background: linear-gradient(145deg, #0f2040, #0a1628);
   border: 2px solid var(--border);
@@ -385,19 +388,19 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  font-size: 1.5rem;
+  font-size: 1.8rem;
   transition: all 0.2s;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+  box-shadow: 0 6px 24px rgba(0,0,0,0.4);
 }
 .chat-mic-btn.recording {
   border-color: rgba(248,113,113,0.5);
-  box-shadow: 0 0 20px rgba(248,113,113,0.2);
+  box-shadow: 0 0 28px rgba(248,113,113,0.25);
 }
 .chat-mic-btn.processing {
   border-color: rgba(56,189,248,0.5);
   animation: processingPulse 1.5s ease-in-out infinite;
 }
-.chat-mic-btn:active { transform: scale(0.96); }
+.chat-mic-btn:active { transform: scale(0.94); }
 
 /* ── New message badge ───────────────────────────────────────────────────── */
 .new-msg-badge {
@@ -563,28 +566,46 @@
 .message-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-top: 6px;
+  gap: 6px;
 }
+/* Big tappable play button — can't miss it */
 .message-play {
-  background: none;
-  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  background: rgba(56,189,248,0.15);
+  border: 1px solid rgba(56,189,248,0.3);
+  border-radius: 20px;
   color: var(--accent);
   cursor: pointer;
-  font-size: 0.75rem;
-  padding: 0;
+  font-size: 0.8rem;
+  font-family: 'Syne', sans-serif;
+  font-weight: 700;
+  padding: 5px 12px;
+  min-height: 32px;
+  transition: background 0.2s;
 }
+.message-play:active { background: rgba(56,189,248,0.3); }
+
+/* Delete button — smaller, tucked to the right, harder to hit by accident */
 .message-delete {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: none;
   border: none;
   color: var(--muted);
   cursor: pointer;
-  font-size: 0.75rem;
-  padding: 0;
-  opacity: 0.5;
+  font-size: 0.7rem;
+  padding: 4px 6px;
+  min-height: 32px;
+  min-width: 32px;
+  opacity: 0.4;
   transition: opacity 0.2s;
+  border-radius: 8px;
 }
-.message-delete:active { opacity: 1; color: var(--danger); }
+.message-delete:active { opacity: 1; color: var(--danger); background: rgba(248,113,113,0.1); }
 
 /* ── New message badge ────────────────────────────────────────────────────── */
 .new-msg-badge {

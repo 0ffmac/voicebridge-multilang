@@ -3,7 +3,7 @@ import { sendMagicLink, verifyMagicLink, logout } from '../worker/api/auth.js';
 import { getMe, updateMe, searchUsers, deleteMe } from '../worker/api/users.js';
 import { listFriends, pendingRequests, sendInvite, acceptInvite, declineInvite } from '../worker/api/friends.js';
 import { getConversation, getUnreadCounts, sendMessage, deleteMessage, deleteConversation } from '../worker/api/messages.js';
-import { subscribe, unsubscribe, testPush } from '../worker/api/push.js';
+import { subscribe, unsubscribe } from '../worker/api/push.js';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -39,7 +39,6 @@ export default {
       // ── Push notifications ────────────────────────────────────────────────
       if (path === '/api/push/subscribe'   && method === 'POST')   return await subscribe(request, env);
       if (path === '/api/push/subscribe'   && method === 'DELETE') return await unsubscribe(request, env);
-      if (path === '/api/push/test'        && method === 'POST')   return await testPush(request, env);
       if (path === '/api/push/vapid-public-key' && method === 'GET') {
         return new Response(JSON.stringify({ key: env.VAPID_PUBLIC_KEY }), {
           headers: { 'Content-Type': 'application/json', ...CORS }
