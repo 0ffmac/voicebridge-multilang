@@ -1,5 +1,11 @@
 /* styles/social.css */
 
+/* Chat page: constrain to viewport so mic stays visible */
+.app {
+  height: 100dvh;
+  overflow: hidden;
+}
+
 /* ── Auth Screen ─────────────────────────────────────────────────────────── */
 .auth-screen {
   min-height: 100dvh;
@@ -301,6 +307,7 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
+  min-height: 0;
 }
 
 .message { display: flex; flex-direction: column; max-width: 82%; }
@@ -353,12 +360,13 @@
 /* ── Chat input bar ───────────────────────────────────────────────────────── */
 .chat-input-bar {
   border-top: 1px solid var(--border);
-  padding: 12px 0 8px;
+  padding: 10px 0 16px;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
+  background: var(--bg);
 }
 
 .chat-status {
