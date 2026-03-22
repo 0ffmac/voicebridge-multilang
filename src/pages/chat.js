@@ -230,14 +230,16 @@ function renderMessages(messages) {
         <div class="message-bubble">
           <div class="message-original">${mainText}</div>
           <div class="message-translation">${subText}</div>
+          <div class="message-footer">
           <div class="message-actions">
             <button class="message-play"
-              onclick="playMessage('${encodeURIComponent(playText)}','${playLang}')">▶</button>
+              onclick="playMessage('${encodeURIComponent(playText)}','${playLang}')">▶ Play</button>
             <button class="message-delete"
               onclick="confirmDeleteMessage('${m.id}')">🗑</button>
           </div>
+          <div class="message-time">${time}</div>
         </div>
-        <div class="message-time">${time}</div>
+        </div>
       </div>
     `;
   }).join('');
