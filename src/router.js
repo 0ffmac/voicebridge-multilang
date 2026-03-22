@@ -63,14 +63,11 @@ async function handleMagicLink(token) {
   try {
     const data = await API.get(`/api/auth/verify?token=${token}`);
     session.set(data.session_token, data.user);
-
-    // Clean token from URL
     window.history.replaceState({}, '', '/');
 
     if (data.is_new_user) {
       router.go('profile', { isNew: true });
     } else {
-      // Go to where user was trying to go before login
       const redirect = window._authRedirect || { page: 'contacts', params: {} };
       window._authRedirect = null;
       router.go(redirect.page, redirect.params);

@@ -75,6 +75,11 @@ export async function deleteMe(request, env) {
     'DELETE FROM friends WHERE requester_id = ? OR receiver_id = ?'
   ).bind(userId, userId).run();
 
+  // Delete all push subscriptions
+  await env.DB.prepare(
+    'DELETE FROM push_subscriptions WHERE user_id = ?'
+  ).bind(userId).run();
+
   // Delete all sessions
   await env.DB.prepare(
     'DELETE FROM sessions WHERE user_id = ?'
